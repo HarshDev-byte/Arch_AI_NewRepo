@@ -1,0 +1,21 @@
+node_modules
+# ENV
+.env
+backend/.env
+frontend/.env.local
+
+# NEXT JS
+.next/
+
+# NODE
+node_modules/
+
+# PYTHON
+__pycache__/
+*.pyc
+
+# DATABASE
+*.db
+
+# OS
+.DS_Store

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ project.name }} — ArchAI Report</title>
+</head>
+<body>
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  COVER PAGE                                                                #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="cover">
+
+  <p style="font-size:8pt;color:#aaa;letter-spacing:2pt;text-transform:uppercase;margin:0 0 20pt;">ArchAI</p>
+  <h1>{{ project.name }}</h1>
+  <p class="cover-subtitle">Architectural Design Report &middot; {{ generated_at }}</p>
+
+  <div class="metric-grid">
+    <div class="metric">
+      <div class="metric-label">Plot area</div>
+      <div class="metric-value">{{ project.plot_area_sqm | int }} <span class="metric-unit">sqm</span></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Floors</div>
+      <div class="metric-value">{{ project.floors }}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Design score</div>
+      <div class="metric-value">{{ "%.1f"|format(score) }} <span class="metric-unit">/ 100</span></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Total cost</div>
+      <div class="metric-value" style="font-size:12pt;">{{ cost.total_cost_inr | inr }}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Green rating</div>
+      <div class="metric-value">{{ sustainability.green_rating | default("N/A") }}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Compliant</div>
+      <div class="metric-value {% if compliance.passed %}pass{% else %}fail{% endif %}">
+        {% if compliance.passed %}Yes{% else %}Issues{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <h2>Design identity</h2>
+  <div class="no-break">
+    <p>
+      <strong>Primary style:</strong>
+      {{ dna.primary_style | default("") | humanize }}
+      &nbsp;&nbsp;
+      <strong>Secondary style:</strong>
+      {{ dna.secondary_style | default("") | humanize }}
+      {% if dna.style_blend_ratio %}
+        ({{ (dna.style_blend_ratio * 100) | round | int }}% influence)
+      {% endif %}
+    </p>
+    <p>
+      <strong>Building form:</strong> {{ dna.building_form | default("") | humanize }}&ensp;
+      <strong>Roof:</strong> {{ dna.roof_form | default("") | humanize }}&ensp;
+      <strong>WWR:</strong> {{ ((dna.window_wall_ratio | default(0.4)) * 100) | round | int }}%&ensp;
+      <strong>Floor height:</strong> {{ dna.floor_height | default(3.0) }}m
+    </p>
+    <p>
+      <strong>Materials:</strong> {{ dna.facade_material_palette | default("") | humanize }}
+      {% if dna.has_courtyard %}&ensp;<span class="tag">Courtyard</span>{% endif %}
+      {% if dna.double_height_spaces %}&ensp;<span class="tag">Double-height</span>{% endif %}
+      {% if dna.rooftop_utility %}&ensp;<span class="tag">Rooftop {{ dna.rooftop_utility | humanize }}</span>{% endif %}
+    </p>
+  </div>
+
+  {% if geo %}
+  <div class="cover-accent">
+    Location: {{ geo.plot_data.location_context.address.city | default("—") }}
+    &middot; {{ project.latitude | default(0) | round(4) }}°N, {{ project.longitude | default(0) | round(4) }}°E
+    {% if geo.zoning_type %}&middot; Zone: {{ geo.zoning_type }}{% endif %}
+  </div>
+  {% endif %}
+
+</div>{# end cover #}
+
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  FLOOR PLAN                                                                #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{% if floor_plan_svg %}
+<h2>Floor plan — Ground floor</h2>
+<div class="floor-plan-wrap">
+  {{ floor_plan_svg | safe }}
+</div>
+<p class="floor-plan-caption">
+  {% if layout.unit_type %}{{ layout.unit_type | upper }} unit &middot; {% endif %}
+  {% if layout.floor_plan %}
+    {{ layout.floor_plan.width_m | default(0) | round(1) }}m &times;
+    {{ layout.floor_plan.depth_m | default(0) | round(1) }}m footprint
+  {% endif %}
+</p>
+<hr class="divider">
+{% endif %}
+
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  COST ESTIMATE                                                              #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<h2>Cost estimate</h2>
+<div class="no-break">
+{% if cost.breakdown %}
+<table class="data-table">
+  <thead>
+    <tr><th>Item</th><th style="text-align:right;">Amount</th></tr>
+  </thead>
+  <tbody>
+    {% for key, val in cost.breakdown.items() %}
+    <tr>
+      <td>{{ key | humanize }}</td>
+      <td class="right">{{ val | inr }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total">
+      <td>Total construction cost</td>
+      <td class="right">{{ cost.total_cost_inr | inr }}</td>
+    </tr>
+  </tbody>
+</table>
+{% if cost.cost_per_sqft %}
+<p style="font-size:8.5pt;color:#888;margin:4pt 0 0;">
+  ₹{{ cost.cost_per_sqft | round | int }}/sqft &middot; Land value est. {{ cost.land_value_estimate | inr }}
+</p>
+{% endif %}
+{% else %}
+<p style="color:#aaa;font-size:9pt;font-style:italic;">Cost breakdown not available.</p>
+{% endif %}
+</div>
+
+{% if cost.roi_estimate or cost.roi %}
+{% set roi = cost.roi_estimate or cost.roi %}
+<h3>Return on investment</h3>
+<div class="metric-grid no-break">
+  <div class="metric">
+    <div class="metric-label">Est. rental / month</div>
+    <div class="metric-value" style="font-size:12pt;">{{ roi.estimated_rental_per_month | inr }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">3-year resale value</div>
+    <div class="metric-value" style="font-size:12pt;">{{ roi.resale_value_3yr | inr }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Rental ROI</div>
+    <div class="metric-value">{{ roi.rental_roi_percent | default("—") }}%</div>
+  </div>
+</div>
+{% endif %}
+
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  COMPLIANCE                                                                #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<h2 class="page-break">Compliance status</h2>
+<div class="no-break">
+
+  <div class="compliance-row">
+    <span class="status-icon {% if compliance.fsi_ok %}pass{% else %}fail{% endif %}">
+      {% if compliance.fsi_ok %}✓{% else %}✗{% endif %}
+    </span>
+    <span>
+      <strong>Floor Space Index (FSI):</strong>
+      {{ compliance.fsi_used }} used &nbsp;/&nbsp; {{ compliance.fsi_allowed }} allowed
+      {% if not compliance.fsi_ok %}
+        &nbsp;<span class="fail">— exceeds limit</span>
+      {% endif %}
+    </span>
+  </div>
+
+  <div class="compliance-row">
+    <span class="status-icon pass">✓</span>
+    <span>
+      <strong>Front setback:</strong>
+      {{ compliance.setback_front_m }}m provided
+      (minimum {{ compliance.setback_front_required_m }}m required)
+    </span>
+  </div>
+
+  <div class="compliance-row">
+    <span class="status-icon {% if compliance.height_ok %}pass{% else %}fail{% endif %}">
+      {% if compliance.height_ok %}✓{% else %}✗{% endif %}
+    </span>
+    <span>
+      <strong>Building height:</strong> {{ compliance.max_height_m }}m
+      {% if not compliance.height_ok %}<span class="fail">— exceeds local limit</span>{% endif %}
+    </span>
+  </div>
+
+  {% if compliance.parking_required %}
+  <div class="compliance-row">
+    <span class="status-icon warn">!</span>
+    <span><strong>Parking required:</strong> {{ compliance.parking_required }} spaces</span>
+  </div>
+  {% endif %}
+
+  {% if compliance.green_area_required %}
+  <div class="compliance-row">
+    <span class="status-icon warn">!</span>
+    <span>
+      <strong>Mandatory green area:</strong>
+      {{ compliance.green_area_required | round(1) }} sqm
+    </span>
+  </div>
+  {% endif %}
+
+</div>
+
+{% if compliance.issues %}
+<div class="no-break" style="margin-top:8pt;padding:8pt 10pt;background:#fef2f2;border-left:3pt solid #e57373;border-radius:3pt;">
+  <p style="margin:0 0 4pt;font-weight:600;font-size:9pt;color:#a01a1a;">Issues to resolve</p>
+  {% for issue in compliance.issues %}
+  <p style="margin:2pt 0;font-size:9pt;color:#a01a1a;">• {{ issue }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if compliance.warnings %}
+<div class="no-break" style="margin-top:8pt;padding:8pt 10pt;background:#fffbeb;border-left:3pt solid #f59e0b;border-radius:3pt;">
+  <p style="margin:0 0 4pt;font-weight:600;font-size:9pt;color:#8a5a00;">Warnings</p>
+  {% for warn in compliance.warnings %}
+  <p style="margin:2pt 0;font-size:9pt;color:#8a5a00;">• {{ warn }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  SUSTAINABILITY                                                             #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<h2>Sustainability &amp; green performance</h2>
+<div class="no-break" style="display:flex;align-items:flex-start;gap:16pt;margin-bottom:10pt;">
+  <div>
+    <div class="green-badge">{{ sustainability.green_score | default("—") }}</div>
+    <p class="green-label">{{ sustainability.green_rating | default("Unrated") }}</p>
+  </div>
+  <div style="flex:1;">
+    <p style="margin:0 0 4pt;">
+      <strong>Solar:</strong>
+      {% if sustainability.solar %}
+        {{ sustainability.solar.panel_area_sqm | default(0) | round(0) | int }} sqm panels &middot;
+        {{ sustainability.solar.annual_generation_kwh | default(0) | round(0) | int }} kWh/year &middot;
+        {{ sustainability.solar.monthly_savings_inr | default(0) | inr }}/month savings &middot;
+        Payback {{ sustainability.solar.payback_years | default("—") }} years
+      {% else %}
+        Data not available
+      {% endif %}
+    </p>
+    <p style="margin:0 0 4pt;">
+      <strong>Ventilation:</strong>
+      {% if sustainability.ventilation %}
+        {{ sustainability.ventilation.strategy | default("") | humanize }}
+        &middot; {{ sustainability.ventilation.ac_reduction_percent | default(0) }}% AC load reduction
+      {% else %}
+        Data not available
+      {% endif %}
+    </p>
+    {% if sustainability.rainwater %}
+    <p style="margin:0;">
+      <strong>Rainwater harvest:</strong>
+      {{ sustainability.rainwater.annual_collection_kl | default(0) | round(1) }} kL/year
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% if sustainability.recommendations %}
+<h3>Recommendations</h3>
+<ul class="rec-list no-break">
+  {% for rec in sustainability.recommendations %}
+  <li>{{ rec }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{#  FOOTER DISCLAIMER                                                         #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<hr class="divider" style="margin-top:30pt;">
+<p style="font-size:7.5pt;color:#bbb;text-align:center;margin:0;">
+  This report was generated automatically by ArchAI on {{ generated_at }}.
+  All figures are estimates based on AI analysis and should be verified by a licensed architect and structural engineer before construction.
+  &copy; ArchAI {{ generated_at[-4:] }}
+</p>
+
+</body>
+</html>
