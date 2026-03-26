@@ -137,7 +137,11 @@ export default function ThreeViewer({
   // ── Scene bootstrap ─────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !modelUrl) return;
+    if (!canvas || !modelUrl || !modelUrl.trim()) {
+      setLoadError("No 3D model available for this variant.");
+      setLoading(false);
+      return;
+    }
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -270,7 +274,7 @@ export default function ThreeViewer({
       },
       (err) => {
         console.error("[ThreeViewer] GLB load error:", err);
-        setLoadError("Failed to load 3D model. Check the URL or try again.");
+        setLoadError("Failed to load 3D model. The model file may be corrupted or too large.");
         setLoading(false);
       },
     );

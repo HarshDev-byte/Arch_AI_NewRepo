@@ -270,6 +270,50 @@ async def _sustainability_task(state: PipelineState) -> dict[str, Any]:
         return {"sustainability_data": {}, "agent": "sustainability", "ok": False, "error": str(exc)}
 
 
+async def _threed_task(state: PipelineState) -> dict[str, Any]:
+    """Run 3D model generation agent."""
+    try:
+        await _emit(state, "threed", "running", "Generating 3D models and scene graphs…")
+        from agents.threed_agent import run as threed_run
+        
+        context = {
+            "best_dna": state.get("best_dna", {}),
+            "layout": state.get("layout_data", {}),
+        }
+        result = await threed_run(state["project_id"], context)
+        
+        await _emit(state, "threed", "complete", "3D models generated successfully")
+        return {"agent": "threed", "ok": True, "threed_data": result}
+    except Exception as exc:
+        await _emit(state, "threed", "error", f"3D generation failed: {str(exc)}")
+        return {"agent": "threed", "ok": False, "error": str(exc)}
+
+
+async def _vr_task(state: PipelineState) -> dict[str, Any]:
+    """Run VR experience generation agent."""
+    try:
+        await _emit(state, "vr", "running", "Creating VR experience…")
+        from agents.vr_agent import run as vr_run
+        
+        # Get scene graph from threed_data
+        threed_data = state.get("threed_data", {})
+        scene_graph = threed_data.get("scene_graph", {})
+        
+        context = {
+            "best_dna": state.get("best_dna", {}),
+            "layout": state.get("layout_data", {}),
+            "scene_graph": scene_graph,  # VR agent expects this key
+            "threed_data": threed_data,
+        }
+        result = await vr_run(state["project_id"], context)
+        
+        await _emit(state, "vr", "complete", "VR experience created successfully")
+        return {"agent": "vr", "ok": True, "vr_data": result}
+    except Exception as exc:
+        await _emit(state, "vr", "error", f"VR generation failed: {str(exc)}")
+        return {"agent": "vr", "ok": False, "error": str(exc)}
+
+
 async def run_parallel_stage(state: PipelineState) -> PipelineState:
     """Run layout + cost + compliance + sustainability concurrently."""
     await _emit(state, "orchestrator", "running",
@@ -301,6 +345,42 @@ async def run_parallel_stage(state: PipelineState) -> PipelineState:
     return state
 
 
+async def run_3d_vr_stage(state: PipelineState) -> PipelineState:
+    """Run 3D model and VR generation sequentially (VR depends on 3D)."""
+    await _emit(state, "orchestrator", "running", "Generating 3D models and VR experience…")
+
+    # Run 3D first
+    threed_result = await _threed_task(state)
+    if isinstance(threed_result, BaseException):
+        state["errors"].append(str(threed_result))
+    else:
+        agent = threed_result.get("agent", "unknown")
+        if threed_result.get("ok"):
+            state["completed_agents"].append(agent)
+            # Merge 3D data into state for VR to use
+            if "threed_data" in threed_result:
+                state["threed_data"] = threed_result["threed_data"]
+        else:
+            state["errors"].append(f"{agent}: {threed_result.get('error','unknown error')}")
+
+    # Run VR second (can use 3D data)
+    vr_result = await _vr_task(state)
+    if isinstance(vr_result, BaseException):
+        state["errors"].append(str(vr_result))
+    else:
+        agent = vr_result.get("agent", "unknown")
+        if vr_result.get("ok"):
+            state["completed_agents"].append(agent)
+        else:
+            state["errors"].append(f"{agent}: {vr_result.get('error','unknown error')}")
+
+        # Merge VR data into state
+        if "vr_data" in vr_result:
+            state["vr_data"] = vr_result["vr_data"]
+
+    return state
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Build & compile LangGraph pipeline
 # ─────────────────────────────────────────────────────────────────────────────
@@ -311,11 +391,13 @@ def build_pipeline():
     graph.add_node("geo",            run_geo_agent)
     graph.add_node("design",         run_design_evolution)
     graph.add_node("parallel_stage", run_parallel_stage)
+    graph.add_node("3d_vr_stage",    run_3d_vr_stage)
 
     graph.set_entry_point("geo")
     graph.add_edge("geo",            "design")
     graph.add_edge("design",         "parallel_stage")
-    graph.add_edge("parallel_stage", END)
+    graph.add_edge("parallel_stage", "3d_vr_stage")
+    graph.add_edge("3d_vr_stage",    END)
 
     return graph.compile()
 
@@ -469,6 +551,10 @@ async def run_and_persist(
         ))
 
         # DesignVariants
+        threed_data = final.get("threed_data") or {}
+        model_url = threed_data.get("model_url")
+        scene_graph = threed_data.get("scene_graph")
+        
         for v in (final.get("design_variants") or []):
             db.add(DesignVariant(
                 project_id=pid,
@@ -477,6 +563,7 @@ async def run_and_persist(
                 score=v.get("score"),
                 is_selected=v.get("is_selected", False),
                 floor_plan_svg=(final.get("layout_data") or {}).get("floor_plan_svg"),
+                model_url=model_url,  # Add the 3D model URL
             ))
 
         # CostEstimate

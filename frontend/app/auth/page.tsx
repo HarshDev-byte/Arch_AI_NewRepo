@@ -9,12 +9,14 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 
 export default function AuthPage() {
-  const supabase = createClientComponentClient();
+  // Skip Supabase initialization during build time
+  const supabase = typeof window !== 'undefined' ? createClientComponentClient() : null;
   const router   = useRouter();
   const [checking, setChecking] = useState(true);
 
   // Redirect immediately if already signed in
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace("/dashboard");
       else setChecking(false);
@@ -23,13 +25,15 @@ export default function AuthPage() {
 
   // Listen for sign-in event
   useEffect(() => {
+    if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN") router.replace("/dashboard");
     });
     return () => subscription?.unsubscribe();
   }, [supabase, router]);
 
-  if (checking) {
+  // Show loading during SSR or while checking auth
+  if (!supabase || checking) {
     return (
       <div className="min-h-screen bg-[#080C14] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
@@ -68,7 +72,7 @@ export default function AuthPage() {
           id="auth-card"
         >
           <Auth
-            supabaseClient={supabase}
+            supabaseClient={supabase!}
             appearance={{
               theme: ThemeSupa,
               variables: {

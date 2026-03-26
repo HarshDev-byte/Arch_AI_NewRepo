@@ -8,6 +8,7 @@ and returns a summary ready for the database and API.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Callable, Optional
 
 from core.design_dna import generate_seed
@@ -36,6 +37,12 @@ Return JSON describing a UNIQUE design.
             system="You are a world-class architect. Every design must be completely unique."
         )
 
+
+async def generate_design(
+    project_id: str,
+    context: dict[str, Any],
+    progress_callback: Optional[Callable] = None,
+) -> dict[str, Any]:
     """
     Design agent entry point.
 

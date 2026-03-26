@@ -97,7 +97,7 @@ export default function AgentProgress({ projectId, onComplete }: AgentProgressPr
 
   useEffect(() => {
     const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const wsUrl = API.replace(/^http/, "ws") + `/api/ws/${projectId}`;
+    const wsUrl = API.replace(/^http/, "ws") + `/ws/${projectId}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     ws.onopen  = () => setConnected(true);

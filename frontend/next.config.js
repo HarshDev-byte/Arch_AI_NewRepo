@@ -4,7 +4,9 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
-      { protocol: "https", hostname: "api.mapbox.com" },
+      { protocol: "https", hostname: "**.openstreetmap.org" },
+      { protocol: "https", hostname: "**.cartocdn.com" },
+      { protocol: "https", hostname: "cdnjs.cloudflare.com" },
     ],
   },
   webpack: (config) => {

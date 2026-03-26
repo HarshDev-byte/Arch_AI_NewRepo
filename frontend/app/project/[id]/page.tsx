@@ -92,18 +92,20 @@ function DesignsTab({
           <BabylonViewer sceneGraph={sel.dna?.scene_graph as any} modelUrl={sel.model_url ?? ""} height="380px" />
 
           {/* ── Open in full Three.js viewer (with Sun Simulator) ────────── */}
-          <Link
-            href={viewerHref(sel)}
-            id="open-3d-viewer-btn"
-            className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: "rgba(251,191,36,0.12)",
-              border:     "1px solid rgba(251,191,36,0.25)",
-              color:      "#fbbf24",
-            }}
-          >
-            ☀️ Open in 3D Viewer — Sun Simulator
-          </Link>
+          {sel.model_url && sel.model_url.trim() && (
+            <Link
+              href={viewerHref(sel)}
+              id="open-3d-viewer-btn"
+              className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all"
+              style={{
+                background: "rgba(251,191,36,0.12)",
+                border:     "1px solid rgba(251,191,36,0.25)",
+                color:      "#fbbf24",
+              }}
+            >
+              ☀️ Open in 3D Viewer — Sun Simulator
+            </Link>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -295,7 +297,7 @@ export default function ProjectPage() {
   const { data: project, refetch } = useQuery<Project>({
     queryKey: ["project", id],
     queryFn:  async () => (await axios.get(`${API}/api/projects/${id}`)).data,
-    refetchInterval: pipelineDone ? false : 5000,
+    refetchInterval: 3000, // Refetch every 3 seconds to catch status updates
   });
 
   // Sustainability & compliance from separate endpoints
@@ -364,8 +366,8 @@ export default function ProjectPage() {
           )}
         </AnimatePresence>
 
-        {/* ── Tabs (once we have variants) */}
-        {(complete || variants.length > 0) && (
+        {/* ── Tabs (once we have variants or pipeline is done) */}
+        {(complete || variants.length > 0 || pipelineDone) && (
           <div>
             {/* Tab bar */}
             <div className="flex gap-1 border-b border-white/8 mb-6 overflow-x-auto">

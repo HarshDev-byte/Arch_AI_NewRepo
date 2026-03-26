@@ -8,6 +8,10 @@ import asyncio
 import time
 import httpx
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Load up to 3 Gemini keys from environment
 GEMINI_KEYS = [k for k in [
@@ -17,7 +21,7 @@ GEMINI_KEYS = [k for k in [
 ] if k]
 
 # Default model — always use Flash, not Pro (Flash has 1,500/day free)
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 class KeyState:
