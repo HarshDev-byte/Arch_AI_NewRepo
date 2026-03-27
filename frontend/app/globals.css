@@ -5,10 +5,23 @@
 @layer base {
   :root {
     color-scheme: dark;
-    /* CSS vars kept for any legacy shadcn usage */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --radius: 0.5rem;
+    --color-background-primary: #080C14;
+    --color-background-secondary: rgba(255, 255, 255, 0.05);
+    --color-border-primary: rgba(255, 255, 255, 0.2);
+    --color-border-secondary: rgba(255, 255, 255, 0.1);
+    --color-border-tertiary: rgba(255, 255, 255, 0.06);
+    --color-border-danger: rgba(239, 68, 68, 0.5);
+    --color-text-primary: #ffffff;
+    --color-text-secondary: rgba(255, 255, 255, 0.6);
+    --color-text-danger: #ef4444;
+    --color-text-success: #10b981;
+    --color-text-info: #3b82f6;
+    --mcp-violet: #8b5cf6;
+    --mcp-cyan: #06b6d4;
+    --mcp-glow: rgba(139, 92, 246, 0.4);
   }
 
   html { scroll-behavior: smooth; }
@@ -19,13 +32,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar         { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track   { background: rgba(255,255,255,0.03); }
   ::-webkit-scrollbar-thumb   { background: rgba(255,255,255,0.12); border-radius: 9999px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
-  /* Range input */
   input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; }
   input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -36,18 +47,47 @@
 }
 
 @layer utilities {
-  /* Shimmer — used by AgentProgress running cards */
   @keyframes shimmer {
     0%   { transform: translateX(-100%); }
     100% { transform: translateX(300%); }
   }
   .animate-shimmer { animation: shimmer 1.8s infinite linear; }
 
-  /* Helpers */
+  @keyframes mcp-pulse-glow {
+    0%, 100% { box-shadow: 0 0 4px 0 rgba(139, 92, 246, 0.4); }
+    50%       { box-shadow: 0 0 12px 3px rgba(139, 92, 246, 0.7); }
+  }
+  .animate-mcp-glow { animation: mcp-pulse-glow 2s ease-in-out infinite; }
+
+  @keyframes tool-slide-in {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .animate-tool-slide { animation: tool-slide-in 0.3s ease-out forwards; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-4px); }
+  }
+  .animate-float { animation: float 3s ease-in-out infinite; }
+
   .text-gradient-violet {
     @apply bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+  .text-gradient-mcp {
+    @apply bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent;
   }
   .glass {
     @apply bg-white/5 backdrop-blur-xl border border-white/20 rounded-2xl;
   }
-}
+  .glass-dark {
+    background: linear-gradient(135deg, rgba(10,10,25,0.97) 0%, rgba(15,15,35,0.97) 100%);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+  }
+  .mcp-border {
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+}

@@ -22,6 +22,15 @@ const STYLES = [
   { id: "scandinavian_minimal",    label: "Scandinavian Minimal",    emoji: "❄️" },
 ];
 
+const UNIT_TYPES = [
+  { id: "0-1RK",  label: "0-1 RK",   desc: "Studio / One Room Kitchen",   emoji: "🏠" },
+  { id: "1BHK",   label: "1 BHK",    desc: "1 Bedroom, Hall, Kitchen",     emoji: "🛏️" },
+  { id: "2BHK",   label: "2 BHK",    desc: "2 Bedrooms, Hall, Kitchen",    emoji: "🛏️🛏️" },
+  { id: "3BHK",   label: "3 BHK",    desc: "3 Bedrooms, Hall, Kitchen",    emoji: "🛋️" },
+  { id: "4BHK",   label: "4 BHK",    desc: "4 Bedrooms, Hall, Kitchen",    emoji: "🏡" },
+  { id: "5BHK+",  label: "5 BHK+",   desc: "5+ Bedrooms — Luxury / Villa", emoji: "🏰" },
+] as const;
+
 function formatBudget(v: number) {
   if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)}Cr`;
   if (v >= 1e5) return `₹${(v / 1e5).toFixed(0)}L`;
@@ -56,25 +65,55 @@ function StepBar({ step }: { step: number }) {
   );
 }
 
-// ─── Budget slider ────────────────────────────────────────────────────────────
+// ─── Budget input + slider ────────────────────────────────────────────────────
 function BudgetSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const MIN = 1_500_000, MAX = 50_000_000;
-  const pct  = ((value - MIN) / (MAX - MIN)) * 100;
+  const MIN = 1_500_000, MAX = 500_000_000;
+  const pct  = Math.min(100, Math.max(0, ((value - MIN) / (MAX - MIN)) * 100));
+
+  const handleType = (raw: string) => {
+    const n = Number(raw);
+    if (!isNaN(n) && n > 0) onChange(Math.min(MAX, Math.max(MIN, n)));
+  };
+
   return (
-    <div>
-      <div className="flex justify-between text-xs text-white/40 mb-2">
-        <span>₹15L</span><span className="text-violet-300 font-bold text-sm">{formatBudget(value)}</span><span>₹5Cr</span>
-      </div>
-      <div className="relative h-2 rounded-full bg-white/10">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500" style={{ width: `${pct}%` }} />
+    <div className="space-y-3">
+      {/* Manual entry row */}
+      <div className="flex items-center gap-2">
+        <span className="text-white/40 text-sm">₹</span>
         <input
-          id="budget-slider"
-          type="range"
-          min={MIN} max={MAX} step={100_000}
+          id="budget-input"
+          type="number"
+          min={MIN}
+          max={MAX}
+          step={100_000}
           value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="absolute inset-0 w-full opacity-0 cursor-pointer h-2"
+          onChange={(e) => handleType(e.target.value)}
+          className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500/60 outline-none text-sm text-white transition-colors"
+          placeholder="Enter budget in ₹"
         />
+        <span className="text-violet-300 font-bold text-sm w-20 text-right shrink-0">
+          {formatBudget(value)}
+        </span>
+      </div>
+      {/* Slider */}
+      <div>
+        <div className="flex justify-between text-[10px] text-white/30 mb-1.5">
+          <span>₹15L</span><span>₹50Cr+</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-white/10">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+            style={{ width: `${pct}%` }}
+          />
+          <input
+            id="budget-slider"
+            type="range"
+            min={MIN} max={MAX} step={100_000}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="absolute inset-0 w-full opacity-0 cursor-pointer h-2"
+          />
+        </div>
       </div>
     </div>
   );
@@ -94,6 +133,20 @@ export default function NewProjectPage() {
   const [floors, setFloors] = useState(2);
   const [styles, setStyles] = useState<string[]>([]);
   const [name,   setName]  = useState("My ArchAI Project");
+  // unitConfigs: { "0-1RK": 2, "2BHK": 1, ... }  — zero means not selected
+  const [unitConfigs, setUnitConfigs] = useState<Record<string, number>>({});
+
+  const totalUnits = Object.values(unitConfigs).reduce((s, n) => s + n, 0);
+
+  const changeUnit = (id: string, delta: number) =>
+    setUnitConfigs(prev => {
+      const next = (prev[id] ?? 0) + delta;
+      if (next <= 0) {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: next };
+    });
 
   const toggleStyle = (id: string) =>
     setStyles((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
@@ -105,12 +158,13 @@ export default function NewProjectPage() {
     try {
       const { data } = await axios.post(`${API}/api/projects`, {
         name,
-        latitude:           lat,
-        longitude:          lng,
-        plot_area_sqm:      area,
-        budget_inr:         budget,
+        latitude:              lat,
+        longitude:             lng,
+        plot_area_sqm:         area,
+        budget_inr:            budget,
         floors,
-        style_preferences:  styles.length ? styles : ["contemporary_minimalist"],
+        style_preferences:     styles.length ? styles : ["contemporary_minimalist"],
+        unit_configurations:   Object.keys(unitConfigs).length ? unitConfigs : undefined,
       });
       // Auto-start generation
       await axios.post(`${API}/api/generate/start/${data.id}`);
@@ -194,17 +248,80 @@ export default function NewProjectPage() {
                 <BudgetSlider value={budget} onChange={setBudget} />
               </div>
 
+              {/* Unit configuration */}
+              <div>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">
+                  Unit configuration
+                </label>
+                <p className="text-xs text-white/30 mb-3">Select the mix of units to build. Add multiples of the same type.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {UNIT_TYPES.map((u) => {
+                    const count = unitConfigs[u.id] ?? 0;
+                    const selected = count > 0;
+                    return (
+                      <div
+                        key={u.id}
+                        className={`p-3 rounded-xl border transition-all ${
+                          selected
+                            ? "border-violet-500/50 bg-violet-500/10"
+                            : "border-white/8 bg-white/3"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1 mb-1">
+                          <div>
+                            <div className="text-lg leading-none mb-0.5">{u.emoji}</div>
+                            <div className="text-xs font-bold text-white/90">{u.label}</div>
+                            <div className="text-[10px] text-white/35 leading-tight mt-0.5">{u.desc}</div>
+                          </div>
+                          {/* counter */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {selected && (
+                              <>
+                                <button
+                                  id={`unit-minus-${u.id}`}
+                                  onClick={() => changeUnit(u.id, -1)}
+                                  className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center justify-center transition-colors"
+                                >
+                                  −
+                                </button>
+                                <span className="text-sm font-bold text-violet-300 w-4 text-center">{count}</span>
+                              </>
+                            )}
+                            <button
+                              id={`unit-add-${u.id}`}
+                              onClick={() => changeUnit(u.id, 1)}
+                              className="w-6 h-6 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {totalUnits > 0 && (
+                  <p className="text-xs text-violet-300 mt-2">
+                    {totalUnits} unit{totalUnits !== 1 ? "s" : ""} selected ·{" "}
+                    {Object.entries(unitConfigs).map(([k, v]) => `${v}×${k}`).join(", ")}
+                  </p>
+                )}
+              </div>
+
               {/* Floors */}
               <div>
-                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Number of floors: <span className="text-violet-400">{floors}</span></label>
-                <div className="flex gap-2 flex-wrap">
-                  {Array.from({ length: 8 }, (_, i) => i + 1).map((f) => (
-                    <button key={f} id={`floors-${f}`} onClick={() => setFloors(f)}
-                      className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
-                        f === floors ? "bg-violet-600 text-white shadow-[0_0_12px_rgba(139,92,246,0.5)]" : "bg-white/5 hover:bg-white/10 text-white/60"
-                      }`}>{f}</button>
-                  ))}
-                </div>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">
+                  Number of floors
+                </label>
+                <input
+                  id="input-floors"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={floors}
+                  onChange={(e) => setFloors(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                  className="w-32 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500/60 outline-none text-sm text-white transition-colors"
+                />
               </div>
 
               {/* Styles */}
@@ -254,6 +371,7 @@ export default function NewProjectPage() {
                   { label: "Plot area",      value: `${area} m² (${(area * 10.764).toFixed(0)} sqft)` },
                   { label: "Budget",         value: formatBudget(budget) },
                   { label: "Floors",         value: `${floors} floor${floors !== 1 ? "s" : ""}` },
+                  { label: "Unit mix",       value: totalUnits > 0 ? Object.entries(unitConfigs).map(([k, v]) => `${v}×${k}`).join(", ") : "Not specified" },
                   { label: "Styles",         value: styles.length ? styles.map((s) => STYLES.find((x) => x.id === s)?.label).join(", ") : "Default (Contemporary)" },
                 ].map((row) => (
                   <div key={row.label} className="flex justify-between gap-4 text-sm">

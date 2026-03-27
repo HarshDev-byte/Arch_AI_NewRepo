@@ -1,0 +1,23 @@
+{
+  "_comment": "ArchAI MCP Server config for Cursor IDE and Claude Desktop",
+  "_instructions": [
+    "1. Copy this file to: %APPDATA%\\Claude\\claude_desktop_config.json  (for Claude Desktop)",
+    "   OR add the 'archai' block to your existing Cursor MCP settings",
+    "2. Replace <YOUR_BACKEND_PATH> with the absolute path to your backend folder",
+    "3. Replace <YOUR_VENV_PYTHON> with the path to your virtual environment Python",
+    "4. Restart Cursor / Claude Desktop",
+    "5. Test by asking: 'List all ArchAI tools available'"
+  ],
+  "mcpServers": {
+    "archai": {
+      "command": "<YOUR_VENV_PYTHON>",
+      "args": [
+        "mcp_server.py"
+      ],
+      "cwd": "<YOUR_BACKEND_PATH>",
+      "env": {
+        "PYTHONPATH": "<YOUR_BACKEND_PATH>"
+      }
+    }
+  }
+}

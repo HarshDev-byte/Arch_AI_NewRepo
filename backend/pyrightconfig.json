@@ -1,0 +1,11 @@
+{
+  "pythonVersion": "3.11",
+  "venvPath": "..",
+  "venv": ".venv",
+  "include": ["."],
+  "exclude": ["**/__pycache__"],
+  "extraPaths": ["."],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportGeneralTypeIssues": "warning"
+}

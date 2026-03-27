@@ -1,4 +1,10 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+# Resolve .env relative to this file's location so it always finds the
+# project-root .env regardless of which directory uvicorn is launched from.
+_ROOT_ENV = Path(__file__).parent.parent / ".env"
+
 
 class Settings(BaseSettings):
     # AI providers
@@ -17,6 +23,10 @@ class Settings(BaseSettings):
 
     # Redis (Upstash)
     redis_url: str = ""
+
+    # Qdrant vector memory
+    qdrant_url: str = ""       # e.g. https://xyz.qdrant.io or http://localhost:6333
+    qdrant_api_key: str = ""   # Qdrant Cloud API key (leave empty for local)
 
     # NREL solar/energy data
     nrel_api_key: str = ""
@@ -40,6 +50,11 @@ class Settings(BaseSettings):
     next_public_mapbox_token: str = ""
 
     class Config:
-        env_file = ".env"
+        # Load from project-root .env; fall back to CWD .env if root not found
+        env_file = str(_ROOT_ENV) if _ROOT_ENV.exists() else ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"            # silently ignore unknown env vars
+
 
 settings = Settings()
+

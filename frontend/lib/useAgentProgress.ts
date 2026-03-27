@@ -238,7 +238,17 @@ export function useAgentProgress(projectId: string): UseAgentProgressResult {
 
     return () => {
       mountedRef.current = false;
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Guard against StrictMode "closed before established" error
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close();
+          ws.onerror = () => {};
+        } else {
+          ws.close();
+        }
+        wsRef.current = null;
+      }
       if (pingTimerRef.current) clearInterval(pingTimerRef.current);
       stopPoll();
     };

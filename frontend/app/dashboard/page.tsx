@@ -49,26 +49,94 @@ function timeAgo(dateStr: string) {
 }
 
 // ─── Project card ─────────────────────────────────────────────────────────────
-function ProjectCard({ project, index }: { project: Project; index: number }) {
+function ProjectCard({
+  project, index, onDelete, onHide,
+}: {
+  project: Project;
+  index: number;
+  onDelete: (id: string) => void;
+  onHide: (id: string) => void;
+}) {
   const cfg = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.pending;
   const style = project.design_dna?.primary_style?.replace(/_/g, " ") ?? "—";
   const greenScore = project.design_dna?.green_score;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirming) { setConfirming(true); return; }
+    onDelete(project.id);
+    setMenuOpen(false);
+    setConfirming(false);
+  };
+
+  const handleHide = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onHide(project.id);
+    setMenuOpen(false);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
       transition={{ delay: index * 0.06, duration: 0.4 }}
       whileHover={{ y: -3, scale: 1.01 }}
       className="group relative"
     >
+      {/* ⋮ menu button — absolute, sits above the Link */}
+      <div className="absolute top-4 right-4 z-20">
+        <button
+          id={`project-menu-${project.id.slice(0, 8)}`}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen((o) => !o); setConfirming(false); }}
+          className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/0 hover:bg-white/10 text-white/30 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+        >
+          ⋮
+        </button>
+
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 top-8 w-44 rounded-xl border border-white/10 bg-[#11161f] shadow-xl shadow-black/40 overflow-hidden z-30"
+              onMouseLeave={() => { setMenuOpen(false); setConfirming(false); }}
+            >
+              <button
+                onClick={handleHide}
+                className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-white/70 hover:bg-white/5 hover:text-white transition-colors text-left"
+              >
+                👁 Hide from list
+              </button>
+              <div className="h-px bg-white/5" />
+              <button
+                onClick={handleDelete}
+                className={`flex items-center gap-2.5 w-full px-4 py-3 text-sm transition-colors text-left ${
+                  confirming
+                    ? "bg-rose-500/20 text-rose-300 font-semibold"
+                    : "text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-300"
+                }`}
+              >
+                🗑 {confirming ? "Tap again to confirm" : "Delete project"}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <Link href={`/project/${project.id}`} id={`project-card-${project.id.slice(0, 8)}`}>
         <div className="relative p-6 rounded-2xl border border-white/8 bg-white/3 hover:bg-white/5 hover:border-white/15 transition-all duration-300 overflow-hidden cursor-pointer">
           {/* Subtle gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          {/* Header */}
-          <div className="relative flex items-start justify-between gap-3">
+          {/* Header — right-padded to avoid ⋮ overlap */}
+          <div className="relative flex items-start justify-between gap-3 pr-6">
             <div className="min-w-0">
               <h3 className="font-bold text-base truncate">{project.name}</h3>
               <p className="text-xs text-white/40 mt-0.5">{timeAgo(project.created_at)}</p>
@@ -150,6 +218,8 @@ function EmptyState() {
   );
 }
 
+const HIDDEN_KEY = "archai_hidden_projects";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { data: projects, isLoading, isError, refetch } = useQuery<Project[]>({
@@ -158,14 +228,43 @@ export default function DashboardPage() {
       const res = await axios.get(`${API}/api/projects`);
       return res.data;
     },
-    refetchInterval: 8000,   // Poll every 8s (catches processing→complete transitions)
+    refetchInterval: 8000,
   });
 
-  const counts = {
-    total:      projects?.length ?? 0,
-    complete:   projects?.filter((p) => p.status === "complete").length ?? 0,
-    processing: projects?.filter((p) => p.status === "processing").length ?? 0,
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]")); }
+    catch { return new Set(); }
+  });
+  const [showHidden, setShowHidden] = useState(false);
+
+  const persistHidden = (ids: Set<string>) => {
+    setHiddenIds(ids);
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...ids]));
   };
+
+  const handleHide = (id: string) => {
+    persistHidden(new Set([...hiddenIds, id]));
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await axios.delete(`${API}/api/projects/${id}`);
+      refetch();
+    } catch {
+      alert("Failed to delete project. Is the backend running?");
+    }
+  };
+
+  const visible = projects?.filter((p) => showHidden || !hiddenIds.has(p.id)) ?? [];
+  const hiddenCount = projects?.filter((p) => hiddenIds.has(p.id)).length ?? 0;
+
+  const counts = {
+    total:      visible.length,
+    complete:   visible.filter((p) => p.status === "complete").length,
+    processing: visible.filter((p) => p.status === "processing").length,
+  };
+
 
   return (
     <div className="min-h-screen bg-[#080C14] text-white font-sans">
@@ -207,12 +306,54 @@ export default function DashboardPage() {
           </p>
         </motion.div>
 
+        {/* ── MCP Tools Banner ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-8 p-4 rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/8 to-cyan-500/5"
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/25 flex-shrink-0">
+                <span className="text-base">🔌</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">MCP Server Active</span>
+                  <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Online
+                  </span>
+                </div>
+                <p className="text-xs text-white/40 mt-0.5">5 AI tools available via Model Context Protocol · Open a project to use them</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Analyze", icon: "🧠" },
+                { label: "Optimize", icon: "⚡" },
+                { label: "Compliance", icon: "🛡️" },
+                { label: "Costs", icon: "💰" },
+                { label: "Suggest", icon: "✨" },
+              ].map((tool) => (
+                <span
+                  key={tool.label}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8 text-xs font-medium text-white/60"
+                >
+                  {tool.icon} {tool.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
         {/* ── Summary pills ────────────────────────────────────────────── */}
         {!isLoading && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-wrap gap-3 mb-8"
+            className="flex flex-wrap items-center gap-3 mb-8"
           >
             {[
               { label: "Total",      value: counts.total,      color: "border-white/10 text-white/60"        },
@@ -223,6 +364,19 @@ export default function DashboardPage() {
                 {pill.value} {pill.label}
               </span>
             ))}
+            {/* Show hidden toggle */}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setShowHidden((v) => !v)}
+                className={`ml-auto px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
+                  showHidden
+                    ? "border-violet-500/50 bg-violet-500/10 text-violet-300"
+                    : "border-white/10 text-white/30 hover:text-white/60"
+                }`}
+              >
+                {showHidden ? "👁 Showing hidden" : `Show hidden (${hiddenCount})`}
+              </button>
+            )}
           </motion.div>
         )}
 
@@ -241,10 +395,18 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (
-          <AnimatePresence>
+          <AnimatePresence mode="popLayout">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects && projects.length > 0
-                ? projects.map((p, i) => <ProjectCard key={p.id} project={p} index={i} />)
+              {visible.length > 0
+                ? visible.map((p, i) => (
+                    <ProjectCard
+                      key={p.id}
+                      project={p}
+                      index={i}
+                      onDelete={handleDelete}
+                      onHide={handleHide}
+                    />
+                  ))
                 : <EmptyState />}
             </div>
           </AnimatePresence>
@@ -252,4 +414,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+}

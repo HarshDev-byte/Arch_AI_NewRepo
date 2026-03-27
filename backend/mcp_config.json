@@ -1,0 +1,33 @@
+{
+  "servers": {
+    "filesystem": {
+      "command": "python",
+      "args": ["-m", "mcp.server.filesystem", "--root", "./"],
+      "description": "File system access for ArchAI project management"
+    },
+    "memory": {
+      "command": "python", 
+      "args": ["-m", "mcp.server.memory"],
+      "description": "Persistent memory for design patterns and user preferences"
+    },
+    "web": {
+      "command": "python",
+      "args": ["-m", "mcp.server.web"],
+      "description": "Web scraping for architecture inspiration and building codes"
+    }
+  },
+  "tools": {
+    "design_generator": {
+      "enabled": true,
+      "description": "AI-powered architectural design generation"
+    },
+    "compliance_checker": {
+      "enabled": true,
+      "description": "Real-time building code compliance validation"
+    },
+    "cost_estimator": {
+      "enabled": true,
+      "description": "Dynamic construction cost estimation"
+    }
+  }
+}

@@ -12,6 +12,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import ViewerWrapper from "@/components/viewer3d/ViewerWrapper";
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+
 interface SharedProject {
   id: string;
   name: string;
@@ -51,7 +54,7 @@ export default function SharedProjectPage() {
 
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/shared/${params.token}`);
+        const response = await fetch(`${API}/api/projects/shared/${params.token}`);
         if (!response.ok) {
           throw new Error("Share link not found or expired");
         }

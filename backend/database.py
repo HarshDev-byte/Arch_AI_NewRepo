@@ -138,6 +138,9 @@ class Project(Base):
 
     # Plot & brief
     plot_area_sqm: Mapped[float | None] = mapped_column(Double, nullable=True)
+    plot_width_m: Mapped[float | None] = mapped_column(Double, nullable=True)
+    plot_depth_m: Mapped[float | None] = mapped_column(Double, nullable=True)
+    fsi_allowed: Mapped[float | None] = mapped_column(Double, nullable=True, default=2.0)
     budget_inr: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     floors: Mapped[int] = mapped_column(Integer, default=2)
     style_preferences: Mapped[list[Any]] = mapped_column(_json(), default=list)

@@ -1,2 +1,8 @@
 {
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["./backend"],
+  "pyre2.enabled": false,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  }
 }

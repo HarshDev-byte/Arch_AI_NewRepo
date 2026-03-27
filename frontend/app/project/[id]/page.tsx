@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,8 +9,12 @@ import axios from "axios";
 import dynamic from "next/dynamic";
 import AgentProgress from "@/components/design/AgentProgress";
 import ShareButton from "@/components/ShareButton";
+import ConfettiEffect from "@/components/ui/ConfettiEffect";
 
 const BabylonViewer = dynamic(() => import("@/components/viewer3d/BabylonViewer"), { ssr: false });
+const AIAssistant = dynamic(() => import("@/components/mcp/AIAssistant"), { ssr: false });
+const MCPStatusBar = dynamic(() => import("@/components/mcp/MCPStatusBar"), { ssr: false });
+const SmartDesignPanel = dynamic(() => import("@/components/mcp/SmartDesignPanel"), { ssr: false });
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -55,35 +59,55 @@ function DesignsTab({
     <div className="grid lg:grid-cols-[280px_1fr] gap-6">
       {/* Variant list */}
       <div className="space-y-3">
-        {/* Compare button */}
-        {variants.length > 1 && (
+        {/* Primary Action Buttons */}
+        <div className="space-y-2 mb-6">
+          {/* Compare button */}
+          {variants.length > 1 && (
+            <Link
+              href={`/project/${project?.id}/compare`}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <span className="text-base">🔄</span>
+              Compare All Variants ({variants.length})
+            </Link>
+          )}
+          
+          {/* Layout Editor button */}
           <Link
-            href={`/project/${project?.id}/compare`}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 mb-4"
+            href={`/project/${project?.id}/layout`}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all border border-violet-500/30 bg-gradient-to-r from-violet-500/10 to-cyan-500/10 text-violet-400 hover:from-violet-500/20 hover:to-cyan-500/20"
           >
-            🔄 Compare Variants ({variants.length})
+            <span className="text-base">🤖</span>
+            AI Floor Plan Editor
           </Link>
-        )}
+        </div>
         
-        {variants.map((v) => {
-          const style = String(v.dna?.primary_style ?? "").replace(/_/g, " ");
-          const form  = String(v.dna?.building_form ?? "").replace(/_/g, " ");
-          const active = v.id === selectedId;
-          return (
-            <button key={v.id} id={`variant-${v.variant_number}`} onClick={() => onSelect(v.id)}
-              className={`w-full text-left p-4 rounded-xl transition-all border ${active ? "border-violet-500/50 bg-violet-500/10" : "border-white/8 bg-white/3 hover:border-white/15"}`}>
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Variant {v.variant_number}</span>
-                <span className={`text-xs font-bold ${active ? "text-violet-400" : "text-white/40"}`}>{v.score?.toFixed(1)}/100</span>
-              </div>
-              <p className="mt-1 text-sm font-semibold capitalize">{style}</p>
-              <p className="text-xs text-white/40 capitalize">{form} form</p>
-              <div className="mt-2 h-1 rounded-full bg-white/8">
-                <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-500" style={{ width: `${v.score ?? 0}%` }} />
-              </div>
-            </button>
-          );
-        })}
+        {/* Variant Selection */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Design Variants</h4>
+          {variants.map((v) => {
+            const style = String(v.dna?.primary_style ?? "").replace(/_/g, " ");
+            const form  = String(v.dna?.building_form ?? "").replace(/_/g, " ");
+            const active = v.id === selectedId;
+            return (
+              <button key={v.id} id={`variant-${v.variant_number}`} onClick={() => onSelect(v.id)}
+                className={`w-full text-left p-4 rounded-xl transition-all border ${active ? "border-violet-500/50 bg-violet-500/10 shadow-lg shadow-violet-500/20" : "border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5"}`}>
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Variant {v.variant_number}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${active ? "text-violet-400" : "text-white/40"}`}>{v.score?.toFixed(1)}/100</span>
+                    {active && <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse"></span>}
+                  </div>
+                </div>
+                <p className="mt-1 text-sm font-semibold capitalize">{style}</p>
+                <p className="text-xs text-white/40 capitalize">{form} form</p>
+                <div className="mt-2 h-1 rounded-full bg-white/8">
+                  <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-500" style={{ width: `${v.score ?? 0}%` }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 3D / details panel */}
@@ -91,21 +115,35 @@ function DesignsTab({
         <div className="space-y-4">
           <BabylonViewer sceneGraph={sel.dna?.scene_graph as any} modelUrl={sel.model_url ?? ""} height="380px" />
 
-          {/* ── Open in full Three.js viewer (with Sun Simulator) ────────── */}
-          {sel.model_url && sel.model_url.trim() && (
+          {/* ── Primary Action Buttons ────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Open in full Three.js viewer (with Sun Simulator) */}
+            {sel.model_url && sel.model_url.trim() && (
+              <Link
+                href={viewerHref(sel)}
+                id="open-3d-viewer-btn"
+                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all bg-gradient-to-r from-amber-500/15 to-orange-500/15 border border-amber-500/25 text-amber-400 hover:border-amber-500/40 hover:from-amber-500/20 hover:to-orange-500/20"
+              >
+                <span className="text-lg">🏗️</span>
+                <div className="text-left">
+                  <div className="font-bold">3D Structure Viewer</div>
+                  <div className="text-xs text-amber-400/70">Interactive + Sun Simulator</div>
+                </div>
+              </Link>
+            )}
+            
+            {/* Floor Plan Editor */}
             <Link
-              href={viewerHref(sel)}
-              id="open-3d-viewer-btn"
-              className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                background: "rgba(251,191,36,0.12)",
-                border:     "1px solid rgba(251,191,36,0.25)",
-                color:      "#fbbf24",
-              }}
+              href={`/project/${project?.id}/layout`}
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all bg-gradient-to-r from-violet-500/15 to-cyan-500/15 border border-violet-500/25 text-violet-400 hover:border-violet-500/40 hover:from-violet-500/20 hover:to-cyan-500/20"
             >
-              ☀️ Open in 3D Viewer — Sun Simulator
+              <span className="text-lg">📐</span>
+              <div className="text-left">
+                <div className="font-bold">Floor Plan Editor</div>
+                <div className="text-xs text-violet-400/70">AI-Powered Design Tools</div>
+              </div>
             </Link>
-          )}
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -265,8 +303,21 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab]   = useState<Tab>("designs");
   const [selectedVariant, setSelectedVariant] = useState<string>("");
-  const [pipelineDone, setPipelineDone] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [rerunning, setRerunning]   = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const handleRerunPipeline = async () => {
+    setRerunning(true);
+    try {
+      await axios.post(`${API}/api/generate/start/${id}`);
+      refetch();
+    } catch (e: any) {
+      alert(e?.response?.data?.detail ?? "Failed to start pipeline.");
+    } finally {
+      setRerunning(false);
+    }
+  };
 
   const handleExportPdf = async () => {
     setPdfLoading(true);
@@ -297,26 +348,36 @@ export default function ProjectPage() {
   const { data: project, refetch } = useQuery<Project>({
     queryKey: ["project", id],
     queryFn:  async () => (await axios.get(`${API}/api/projects/${id}`)).data,
-    refetchInterval: 3000, // Refetch every 3 seconds to catch status updates
+    // Poll every 3s while processing; stop once complete to avoid unnecessary traffic
+    refetchInterval: (data: any) =>
+      data?.status === "complete" || data?.status === "error" ? false : 3000,
   });
+
+  const processing   = project?.status === "processing" || project?.status === "pending";
+  const complete     = project?.status === "complete";
+  // Derive pipelineDone directly — never stale, no extra render tick needed
+  const pipelineDone = complete;
+  const variants     = useMemo(() => project?.design_variants ?? [], [project?.design_variants]);
+  const costs        = project?.cost_estimates?.[0];
+  const compliance   = project?.compliance_checks?.[0];
 
   // Sustainability & compliance from separate endpoints
   const { data: sust } = useQuery<SustData>({
     queryKey: ["sust", id],
     queryFn:  async () => (await axios.get(`${API}/api/projects/${id}/sustainability`)).data,
-    enabled:  pipelineDone,
+    enabled:  complete,   // fires as soon as project is complete
   });
 
-  const processing = project?.status === "processing" || project?.status === "pending";
-  const complete   = project?.status === "complete";
-  const variants   = project?.design_variants ?? [];
-  const costs      = project?.cost_estimates?.[0];
-  const compliance = project?.compliance_checks?.[0];
-
   useEffect(() => {
-    if (complete) { setPipelineDone(true); }
     if (variants.length && !selectedVariant) setSelectedVariant(variants[0].id);
-  }, [project, variants, selectedVariant, complete]);
+  }, [variants, selectedVariant]);
+
+  // Trigger confetti when project completes
+  useEffect(() => {
+    if (complete && !showConfetti) {
+      setShowConfetti(true);
+    }
+  }, [complete, showConfetti]);
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: "designs",       label: "Designs",       icon: "🧬" },
@@ -328,11 +389,17 @@ export default function ProjectPage() {
 
   return (
     <div className="min-h-screen bg-[#080C14] text-white font-sans">
+      {/* ── Sticky nav */}
       <nav className="sticky top-0 z-40 flex items-center gap-4 px-6 py-4 backdrop-blur-xl bg-[#080C14]/80 border-b border-white/5">
         <Link href="/dashboard" className="text-white/40 hover:text-white transition-colors text-sm">← Projects</Link>
         <span className="text-white/20">/</span>
         <span className="text-sm font-semibold truncate">{project?.name ?? "Loading…"}</span>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
+          {/* MCP badge */}
+          <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/25 text-violet-300 text-xs font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+            MCP Active
+          </span>
           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
             complete   ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30" :
             processing ? "bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30" :
@@ -340,8 +407,7 @@ export default function ProjectPage() {
           }`}>
             {complete ? "Complete" : processing ? "Processing…" : project?.status ?? "—"}
           </span>
-          
-          {/* Export PDF button */}
+          {/* Re-run / Export buttons */}
           {complete && (
             <button
               onClick={handleExportPdf}
@@ -351,61 +417,228 @@ export default function ProjectPage() {
               {pdfLoading ? "Generating..." : "📄 Export PDF"}
             </button>
           )}
+          {(project?.status === "pending" || project?.status === "error") && (
+            <button
+              id="rerun-pipeline-btn"
+              onClick={handleRerunPipeline}
+              disabled={rerunning}
+              className="px-3 py-1 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/40 text-violet-300 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {rerunning ? "Starting…" : "▶ Run Pipeline"}
+            </button>
+          )}
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <div className="flex">
+        {/* ── Main content area */}
+        <div className="flex-1 min-w-0 max-w-full px-6 py-8 space-y-8" style={{ maxWidth: complete ? "calc(100% - 336px)" : "100%" }}>
 
-        {/* ── Agent progress (while running) */}
-        <AnimatePresence>
-          {processing && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <h2 className="text-lg font-bold mb-4">🤖 Agent Pipeline</h2>
-              <AgentProgress projectId={id} onComplete={() => { setPipelineDone(true); refetch(); }} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Tabs (once we have variants or pipeline is done) */}
-        {(complete || variants.length > 0 || pipelineDone) && (
-          <div>
-            {/* Tab bar */}
-            <div className="flex gap-1 border-b border-white/8 mb-6 overflow-x-auto">
-              {TABS.map((t) => (
-                <button key={t.id} id={`tab-${t.id}`} onClick={() => setActiveTab(t.id)}
-                  className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all border-b-2 ${
-                    activeTab === t.id ? "border-violet-500 text-white" : "border-transparent text-white/40 hover:text-white"
-                  }`}>
-                  {t.icon} {t.label}
-                </button>
-              ))}
-              <Link href={`/project/${id}/layout`} className="ml-3 flex items-center gap-1.5 px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all text-white/40 hover:text-white border-l border-white/6">
-                ✏️ Edit floor plan
-              </Link>
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-                {activeTab === "designs"        && <DesignsTab variants={variants} selectedId={selectedVariant} onSelect={setSelectedVariant} project={project} />}
-                {activeTab === "floorplan"      && <FloorPlanTab variants={variants} />}
-                {activeTab === "costs"          && <CostsTab costs={costs} />}
-                {activeTab === "compliance"     && <ComplianceTab comp={compliance} />}
-                {activeTab === "sustainability" && <SustainabilityTab sust={sust} />}
+          {/* Agent progress — shown while running AND after completion */}
+          <AnimatePresence>
+            {(processing || complete) && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <h2 className="text-lg font-bold mb-4">
+                  {complete ? "🎉 All agents complete!" : "🤖 Agent Pipeline"}
+                </h2>
+                <AgentProgress
+                  projectId={id}
+                  initiallyComplete={complete}
+                  onComplete={() => refetch()}
+                />
+                
+                {/* Completion Call-to-Action */}
+                {complete && variants.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="mt-6 p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-violet-500/10 to-cyan-500/10 border border-emerald-500/20"
+                  >
+                    <div className="text-center mb-6">
+                      <h3 className="text-xl font-bold text-emerald-400 mb-2">🎉 Your designs are ready!</h3>
+                      <p className="text-white/60 mb-4">Scroll down to explore your designs, or jump directly to:</p>
+                      
+                      {/* Scroll indicator */}
+                      <motion.div
+                        animate={{ y: [0, 8, 0] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="flex justify-center mb-4"
+                      >
+                        <div className="flex flex-col items-center gap-1 text-white/30">
+                          <span className="text-xs">Scroll to explore</span>
+                          <div className="w-4 h-6 border border-white/20 rounded-full flex justify-center">
+                            <div className="w-1 h-2 bg-white/30 rounded-full mt-1"></div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* 3D Viewer Button */}
+                      {variants[0]?.model_url && (
+                        <Link
+                          href={`/project/${id}/viewer?variant=${variants[0].id}${variants[0].model_url ? `&model=${encodeURIComponent(variants[0].model_url)}` : ''}${project?.latitude ? `&lat=${project.latitude}` : ''}${project?.longitude ? `&lng=${project.longitude}` : ''}`}
+                          className="group flex flex-col items-center gap-3 p-6 rounded-xl bg-gradient-to-br from-amber-500/15 to-orange-500/15 border border-amber-500/25 hover:border-amber-500/40 transition-all hover:scale-105"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white text-xl group-hover:scale-110 transition-transform">
+                            🏗️
+                          </div>
+                          <div className="text-center">
+                            <h4 className="font-bold text-amber-400 mb-1">3D Structure</h4>
+                            <p className="text-xs text-white/50">Interactive 3D viewer with sun simulator</p>
+                          </div>
+                        </Link>
+                      )}
+                      
+                      {/* Floor Plan Editor Button */}
+                      <Link
+                        href={`/project/${id}/layout`}
+                        className="group flex flex-col items-center gap-3 p-6 rounded-xl bg-gradient-to-br from-violet-500/15 to-cyan-500/15 border border-violet-500/25 hover:border-violet-500/40 transition-all hover:scale-105"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white text-xl group-hover:scale-110 transition-transform">
+                          📐
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-bold text-violet-400 mb-1">Floor Plan Design</h4>
+                          <p className="text-xs text-white/50">AI-powered interactive floor plan editor</p>
+                        </div>
+                      </Link>
+                      
+                      {/* PDF Export Button */}
+                      <button
+                        onClick={handleExportPdf}
+                        disabled={pdfLoading}
+                        className="group flex flex-col items-center gap-3 p-6 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 border border-emerald-500/25 hover:border-emerald-500/40 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-xl group-hover:scale-110 transition-transform">
+                          {pdfLoading ? "⏳" : "📄"}
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-bold text-emerald-400 mb-1">
+                            {pdfLoading ? "Generating..." : "Export PDF"}
+                          </h4>
+                          <p className="text-xs text-white/50">Download complete project report</p>
+                        </div>
+                      </button>
+                    </div>
+                    
+                    <div className="mt-6 text-center">
+                      <p className="text-sm text-white/40">
+                        💡 <strong>Tip:</strong> Use the AI Floor Plan Editor to customize your design, then regenerate the 3D model
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
-            </AnimatePresence>
-          </div>
-        )}
+            )}
+          </AnimatePresence>
 
-        {/* ── Share Button (when project is complete) */}
-        {complete && project && (
-          <ShareButton 
-            projectId={project.id} 
-            projectName={project.name}
-            initialShareToken={project.share_token}
-            initialIsPublic={project.is_public}
-          />
+          {/* Pending / error state — show re-run prompt */}
+          <AnimatePresence>
+            {(project?.status === "pending" || project?.status === "error") && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`p-6 rounded-2xl border text-center ${
+                  project.status === "error"
+                    ? "border-rose-500/30 bg-rose-500/5"
+                    : "border-violet-500/20 bg-violet-500/5"
+                }`}
+              >
+                <div className="text-3xl mb-3">{project.status === "error" ? "⚠️" : "🚀"}</div>
+                <h3 className="font-bold text-base mb-1">
+                  {project.status === "error" ? "Pipeline encountered an error" : "Pipeline not started yet"}
+                </h3>
+                <p className="text-sm text-white/40 mb-4">
+                  {project.status === "error"
+                    ? "Something went wrong. You can re-run the pipeline to try again."
+                    : "Click below to launch the 8-agent AI design pipeline for this project."}
+                </p>
+                <button
+                  onClick={handleRerunPipeline}
+                  disabled={rerunning}
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 font-bold text-sm transition-all disabled:opacity-50"
+                >
+                  {rerunning ? "Starting…" : project.status === "error" ? "🔄 Re-run Pipeline" : "▶ Start Pipeline"}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Tabs */}
+          {(complete || variants.length > 0 || pipelineDone) && (
+            <div>
+              <div className="flex gap-1 border-b border-white/8 mb-6 overflow-x-auto">
+                {TABS.map((t) => {
+                  if (t.id === "floorplan") {
+                    return (
+                      <Link key={t.id} href={`/project/${id}/layout`}
+                        className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all border-b-2 border-transparent text-white/40 hover:text-white hover:border-violet-500/50">
+                        {t.icon} {t.label}
+                      </Link>
+                    );
+                  }
+                  return (
+                    <button key={t.id} id={`tab-${t.id}`} onClick={() => setActiveTab(t.id)}
+                      className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all border-b-2 ${
+                        activeTab === t.id ? "border-violet-500 text-white" : "border-transparent text-white/40 hover:text-white"
+                      }`}>
+                      {t.icon} {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+                  {activeTab === "designs"        && <DesignsTab variants={variants} selectedId={selectedVariant} onSelect={setSelectedVariant} project={project} />}
+                  {activeTab === "floorplan"      && <FloorPlanTab variants={variants} />}
+                  {activeTab === "costs"          && <CostsTab costs={costs} />}
+                  {activeTab === "compliance"     && <ComplianceTab comp={compliance} />}
+                  {activeTab === "sustainability" && <SustainabilityTab sust={sust} />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Share Button */}
+          {complete && project && (
+            <ShareButton
+              projectId={project.id}
+              projectName={project.name}
+              initialShareToken={project.share_token}
+              initialIsPublic={project.is_public}
+            />
+          )}
+        </div>
+
+        {/* ── Smart Design Sidebar (desktop, completed projects only) */}
+        {complete && (
+          <motion.aside
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="hidden xl:block w-80 flex-shrink-0 py-8 pr-6 sticky top-[73px] self-start h-[calc(100vh-73px)] overflow-y-auto"
+          >
+            <SmartDesignPanel
+              projectId={id}
+              currentDesign={variants.find(v => v.id === selectedVariant)?.dna}
+              onDesignUpdate={(update) => console.log("Design update from MCP:", update)}
+            />
+          </motion.aside>
         )}
       </div>
+
+      {/* ── Floating AI Assistant (always visible) */}
+      <AIAssistant projectId={id} />
+
+      {/* ── MCP Status Bar (above AI assistant) */}
+      <MCPStatusBar projectId={id} />
+
+      {/* ── Confetti Effect */}
+      <ConfettiEffect trigger={showConfetti} />
     </div>
   );
 }

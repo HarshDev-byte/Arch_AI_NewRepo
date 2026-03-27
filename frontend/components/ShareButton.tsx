@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+
 interface ShareButtonProps {
   projectId: string;
   projectName: string;
@@ -47,7 +50,7 @@ export default function ShareButton({
   const createShareLink = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/share`, {
+      const response = await fetch(`${API}/api/projects/${projectId}/share`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -74,7 +77,7 @@ export default function ShareButton({
   const revokeShareLink = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/share`, {
+      const response = await fetch(`${API}/api/projects/${projectId}/share`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",

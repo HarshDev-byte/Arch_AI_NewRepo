@@ -25,10 +25,10 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import OptionalUser
+from auth import OptionalUser, get_current_user
 from database import (
     AgentRun,
     AsyncSessionLocal,
@@ -406,7 +406,87 @@ async def get_generation_status(
                 "started_at":   r.started_at.isoformat() if r.started_at else None,
                 "completed_at": r.completed_at.isoformat() if r.completed_at else None,
                 "error":        r.error_message,
+                "data":         r.output_data,
             }
             for r in runs
         ],
     }
+
+@router.post(
+    "/{project_id}/complete",
+    summary="Manually mark project as complete (for debugging)",
+)
+async def complete_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually mark a project as complete if all agents have finished.
+    This is a debugging endpoint to fix stuck projects.
+    """
+    pid = uuid.UUID(project_id)
+    
+    # Get project and verify ownership
+    result = await db.execute(select(Project).where(Project.id == pid))
+    project = result.scalar_one_or_none()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if str(project.user_id) != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check agent runs
+    agent_result = await db.execute(
+        select(AgentRun).where(AgentRun.project_id == pid)
+    )
+    agent_runs = agent_result.scalars().all()
+    
+    completed_agents = sum(1 for run in agent_runs if run.status == "complete")
+    error_agents = sum(1 for run in agent_runs if run.status == "error")
+    total_agents = len(agent_runs)
+    
+    if total_agents == 0:
+        raise HTTPException(status_code=400, detail="No agent runs found")
+    
+    if error_agents > 0:
+        # Update to error status
+        await db.execute(
+            update(Project)
+            .where(Project.id == pid)
+            .values(status="error")
+        )
+        await db.commit()
+        return {
+            "status": "error",
+            "message": f"Project marked as error due to {error_agents} failed agents",
+            "completed_agents": completed_agents,
+            "error_agents": error_agents,
+            "total_agents": total_agents
+        }
+    
+    elif completed_agents == total_agents:
+        # All agents complete, mark project as complete
+        await db.execute(
+            update(Project)
+            .where(Project.id == pid)
+            .values(status="complete")
+        )
+        await db.commit()
+        return {
+            "status": "complete",
+            "message": f"Project marked as complete with {completed_agents} successful agents",
+            "completed_agents": completed_agents,
+            "error_agents": error_agents,
+            "total_agents": total_agents
+        }
+    
+    else:
+        return {
+            "status": "processing",
+            "message": f"Project still processing: {completed_agents}/{total_agents} agents complete",
+            "completed_agents": completed_agents,
+            "error_agents": error_agents,
+            "total_agents": total_agents
+        }

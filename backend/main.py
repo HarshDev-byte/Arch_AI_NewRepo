@@ -15,7 +15,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
-from routes import agents, chat, generate, images, models, projects, users, api_keys, environment
+from routes import agents, chat, generate, images, models, projects, users, api_keys, environment, floorplan, memory, mcp
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -66,6 +66,23 @@ manager = ConnectionManager()
 async def lifespan(app: FastAPI):
     await init_db()
     app.state.manager = manager
+
+    # Reset any projects stuck in "processing" from a previous server run.
+    # Without this, a backend restart permanently blocks re-triggering those projects.
+    try:
+        from sqlalchemy import update as sa_update
+        from database import AsyncSessionLocal, Project
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                sa_update(Project)
+                .where(Project.status == "processing")
+                .values(status="pending")
+            )
+            await db.commit()
+            print("✅ Reset stale 'processing' projects to 'pending'.")
+    except Exception as e:
+        print(f"⚠️  Could not reset stale projects: {e}")
+
     yield
     # Clean up connections on shutdown
     for ws in list(manager.active.values()):
@@ -105,6 +122,7 @@ app.add_middleware(
 # ─── Routers ─────────────────────────────────────────────────────────────────
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(generate.router, prefix="/api/generate", tags=["generate"])
+app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
 app.include_router(agents.router,   prefix="/api/agents",   tags=["agents"])
 app.include_router(models.router,   prefix="/api/models",   tags=["models"])
 app.include_router(users.router,    prefix="/api/users",    tags=["users"])
@@ -112,6 +130,8 @@ app.include_router(chat.router,     prefix="/api/chat",     tags=["chat"])
 app.include_router(images.router,   prefix="/api/images",   tags=["images"])
 app.include_router(api_keys.router, prefix="/api/users", tags=["api_keys"])
 app.include_router(environment.router, prefix="/api/environment", tags=["environment"])
+app.include_router(floorplan.router, prefix="/api/floorplan", tags=["floorplan"])
+app.include_router(memory.router,   prefix="/api/memory",   tags=["memory"])
 # Also expose a root keys router for simpler client calls (legacy support)
 app.include_router(api_keys.router)
 

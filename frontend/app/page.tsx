@@ -96,6 +96,14 @@ const FEATURES = [
     color: "from-rose-500/20 to-pink-500/10",
     border: "border-rose-500/30",
   },
+  {
+    icon: "🔌",
+    title: "MCP Integration",
+    description:
+      "Model Context Protocol server exposes 5 AI tools — analyze, optimize, validate, estimate and suggest — callable from Cursor or Claude Desktop.",
+    color: "from-violet-500/20 to-purple-500/10",
+    border: "border-violet-500/30",
+  },
 ];
 
 const STYLES = [
@@ -174,7 +182,7 @@ export default function LandingPage() {
             <motion.div variants={fadeUp}>
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-300 text-sm font-medium mb-8">
                 <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                8 AI Agents · Real-time · Free APIs only
+                8 AI Agents · Real-time · Free APIs only · MCP Server
               </span>
             </motion.div>
 
